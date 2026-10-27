@@ -31,6 +31,8 @@ Open **Connection settings** and set:
 
 Settings are local to each browser/device and do not sync automatically. The username, URL, and prefix are stored in that browser's local storage. Do not save credentials on a shared device.
 
+On iPhone and other browsers, direct HTTP connections to a local ESP32 can be blocked when this app is hosted over HTTPS or when the hub does not allow cross-origin browser requests. Use **Auto** mode and configure the hub's MQTT topic prefix and secure WebSocket broker URL; Auto tries local Wi-Fi and falls back to MQTT. Selecting a saved hub switches to Auto mode. A saved profile only stores connection details and does not pair or provision hardware.
+
 To open Board Settings, enter the app access code **290771**. To add another hub, open **Board Settings → Saved Hubs**, enter its name, local IP address, and the exact MQTT topic prefix configured on that hub, then select **Save Hub**. Saving stores a connection profile in this browser; it does not discover or configure hardware. Select the saved profile to make it the active hub. To add PCF8575 expansion-board switch points instead, use **Active Relays**, enable the board and its switch points, save, then assign those points to a room.
 
 ## Security and browser limitations

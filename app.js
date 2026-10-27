@@ -407,7 +407,7 @@
     if (tab === "Network") {
       body = `${tabButtons}<div class="field"><span class="field-label">Connection mode</span><div class="mode-options">
         ${[["AUTO", "Auto"], ["WIFI", "Wi-Fi"], ["CLOUD", "Cloud"], ["BLUETOOTH", "Bluetooth"]].map(([value, label]) => `<label class="mode-choice"><input type="radio" name="mode" value="${value}"${settings.mode === value ? " checked" : ""}> ${label}</label>`).join("")}</div></div>
-        <div class="warning-box">This browser can connect to MQTT over secure WebSocket. Local HTTP and Bluetooth may be blocked or unavailable because of browser security and device support. Bluetooth mode uses Android’s native serial support and is unavailable here.</div>
+        <div class="warning-box">This browser connects through MQTT over secure WebSocket. Direct local HTTP may be blocked by iPhone/desktop browser security. Auto mode tries local Wi-Fi first, then falls back to secure MQTT when a topic prefix is configured. Bluetooth mode requires the Android app.</div>
         <div class="form-grid"><div class="field"><label for="device-ip">ESP32 local IP address</label><input id="device-ip" name="deviceIp" value="${escapeHtml(settings.deviceIp)}" placeholder="192.168.1.100"></div>
         <div class="field"><label for="device-name">Device name</label><input id="device-name" name="deviceName" value="${escapeHtml(settings.deviceName)}"></div>
         <div class="field full"><label for="mqtt-prefix">MQTT topic prefix</label><input id="mqtt-prefix" name="mqttPrefix" maxlength="120" required value="${escapeHtml(settings.mqttPrefix)}"></div>
@@ -527,8 +527,15 @@
     if (mode === "WIFI") {
       connectLocal().then((connected) => {
         if (!connected) {
-          setConnectionState("disconnected");
-          showToast("Local Wi-Fi connection is restricted by this browser. Try Cloud MQTT or the Android app.");
+          if (state.settings.mqttPrefix.trim()) {
+            state.settings.mode = "AUTO";
+            persist();
+            showToast("Browser blocked direct Wi-Fi. Trying secure MQTT instead.");
+            connectCloud();
+          } else {
+            setConnectionState("disconnected");
+            showToast("Browser blocked direct Wi-Fi. Add the hub's MQTT topic prefix in Board Settings to connect securely.");
+          }
         }
       });
       return;
@@ -1078,6 +1085,7 @@
     state.settings.deviceIp = hub.ip;
     state.settings.deviceName = hub.name;
     state.settings.mqttPrefix = hub.mqttPrefix;
+    state.settings.mode = "AUTO";
     persist();
     if (socket && socket.readyState < WebSocket.CLOSING) disconnect();
     renderSettings("Saved Hubs");
