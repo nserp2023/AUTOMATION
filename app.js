@@ -420,8 +420,9 @@
     } else if (tab === "Saved Hubs") {
       body = `${tabButtons}<p class="helper-text">Saved hub details stay in this browser. Automatic subnet scanning is restricted in browsers; add or select hubs manually.</p>
         ${settings.hubs.map((hub) => `<div class="hub-row"><div class="hub-detail"><strong>${escapeHtml(hub.name)}${hub.isPrimary ? " · PRIMARY" : ""}</strong><small>${escapeHtml(hub.ip)} · ${escapeHtml(hub.mqttPrefix)}</small></div><div>${hub.isPrimary ? "" : `<button class="text-button" type="button" data-action="select-hub" data-hub-id="${escapeHtml(hub.id)}">Select</button>`}<button class="text-button danger" type="button" data-action="delete-hub" data-hub-id="${escapeHtml(hub.id)}">Delete</button></div></div>`).join("")}
-        <div class="form-grid"><div class="field"><label for="new-hub-name">New hub name</label><input id="new-hub-name" name="newHubName" placeholder="Ground Floor Hub"></div><div class="field"><label for="new-hub-ip">Local IP</label><input id="new-hub-ip" name="newHubIp" placeholder="192.168.1.101"></div><div class="field full"><label for="new-hub-prefix">MQTT topic prefix</label><input id="new-hub-prefix" name="newHubPrefix" placeholder="Unique hub topic prefix"></div></div>
-        <button class="text-button" type="button" data-action="add-hub">＋ Add hub</button>
+        <p class="info-box">Add a saved connection profile; this does not discover or configure hardware. Enter the exact MQTT topic prefix set on the hub. After saving, select the profile to make it active.</p>
+        <div class="form-grid"><div class="field"><label for="new-hub-name">Hub name</label><input id="new-hub-name" name="newHubName" maxlength="48" required placeholder="Ground Floor Hub"></div><div class="field"><label for="new-hub-ip">Local IP address</label><input id="new-hub-ip" name="newHubIp" maxlength="253" required placeholder="192.168.1.101"></div><div class="field full"><label for="new-hub-prefix">MQTT topic prefix</label><input id="new-hub-prefix" name="newHubPrefix" maxlength="120" required placeholder="Unique hub topic prefix"></div></div>
+        <p class="error-text" id="dialog-error"></p>
         <button class="text-button" type="button" data-action="discover">Try current hub IP</button>`;
     } else {
       const boards = settings.connectedBoards || ["ESP32"];
@@ -431,7 +432,9 @@
         <label class="field"><span class="field-label">Filter switch points</span><input class="search-input" data-action="filter-switches" placeholder="Search S1, Relay, GPIO, or board"></label>
         <div class="check-list" id="active-switch-list">                ${state.switches.map((sw) => `<label class="check-row${enabled.includes(sw.id) ? " selected" : ""}" data-switch-search="${escapeHtml(`${sw.id} ${sw.customName} ${sw.boardKey} ${sw.pinLabel}`.toLowerCase())}"><span class="check-detail"><strong>${escapeHtml(sw.customName)} (${sw.id})</strong><small>${escapeHtml(sw.boardKey)} · ${escapeHtml(sw.pinLabel)} · Relay ${sw.relayChannel + 1}</small></span><input type="checkbox" name="enabledSwitches" value="${sw.id}"${enabled.includes(sw.id) ? " checked" : ""}></label>`).join("")}</div>`;
     }
-    const actions = `${actionButton("Close", "close-dialog", "secondary-button")}${actionButton("Save Settings", "save-settings")}`;
+    const actions = tab === "Saved Hubs"
+      ? `${actionButton("Close", "close-dialog", "secondary-button")}${actionButton("Save Hub", "add-hub")}`
+      : `${actionButton("Close", "close-dialog", "secondary-button")}${actionButton("Save Settings", "save-settings")}`;
     openDialog("settings", "Vajra Smart Hub Settings", "", body, actions, { tab, draft: settings });
   }
 
@@ -456,7 +459,7 @@
   }
 
   function requestPin(target) {
-    const body = `<div class="warning-box">Enter the six-digit app access code to continue. A code check inside a web app is only a screen lock; it is not secure authentication.</div>
+    const body = `<div class="warning-box">Enter the app access code (290771) to continue. A code check inside a web app is only a screen lock; it is not secure authentication.</div>
       <div class="field"><label for="security-pin">Security password</label><input id="security-pin" name="pin" type="password" inputmode="numeric" maxlength="6" autocomplete="one-time-code" required></div><p class="error-text" id="dialog-error"></p>`;
     openDialog("pin", target === "settings" ? "Settings Security Password" : "OTA Flasher Security Password", "", body, `${actionButton("Cancel", "close-dialog", "secondary-button")}${actionButton("Unlock Access", "unlock-pin")}`, { target });
   }
@@ -1060,10 +1063,12 @@
     const name = form.elements.newHubName.value.trim();
     const ip = form.elements.newHubIp.value.trim();
     const prefix = form.elements.newHubPrefix.value.trim();
-    if (!name || !ip || !prefix) return showToast("Enter a hub name, local IP, and MQTT topic prefix.");
+    if (!name || !ip || !prefix) return setDialogError("Enter a hub name, local IP address, and MQTT topic prefix.");
+    if (/[+#\s]/.test(prefix)) return setDialogError("Enter a topic prefix without spaces, +, or #.");
     state.hubs.push({ id: makeId("hub"), name, ip, mqttPrefix: prefix, isPrimary: false });
     persist();
     renderSettings("Saved Hubs");
+    showToast("Hub profile saved. Select it to make it active.");
   }
 
   function selectHub(hubId) {
@@ -1089,8 +1094,13 @@
       const html = await response.text();
       if (!/VAJRA SMART HUB/i.test(html)) throw new Error("The address did not identify as a Vajra hub.");
       const prefix = /Topic Prefix:\s*([\w_]+)/i.exec(html)?.[1] || state.settings.mqttPrefix;
+      if (state.hubs.some((hub) => hub.ip === ip)) {
+        showToast("This hub is already saved.");
+        return;
+      }
       state.hubs.push({ id: makeId("hub"), name: `Vajra Hub (${ip})`, ip, mqttPrefix: prefix, isPrimary: false });
       persist();
+      if (dialogState?.kind === "settings" && dialogState.tab === "Saved Hubs") renderSettings("Saved Hubs");
       showToast("Hub found and saved.");
     } catch (error) {
       showToast(`Automatic local discovery is restricted here: ${error.message}. Add the hub manually or use Android.`);
@@ -1310,7 +1320,7 @@
 
   if ("serviceWorker" in navigator && window.isSecureContext) {
     window.addEventListener("load", () => {
-      navigator.serviceWorker.register("./service-worker.js").catch((error) => {
+      navigator.serviceWorker.register("./service-worker.js", { updateViaCache: "none" }).catch((error) => {
         console.error("Offline app setup failed:", error);
       });
     });

@@ -1,9 +1,9 @@
-const CACHE_NAME = "vajra-web-v4";
+const CACHE_NAME = "vajra-web-v6";
 const APP_FILES = [
   "./",
   "./index.html",
   "./styles.css",
-  "./app.js",
+  "./app.js?v=6",
   "./manifest.webmanifest",
   "./icon.svg",
   "./icon-180.png",

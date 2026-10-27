@@ -31,6 +31,8 @@ Open **Connection settings** and set:
 
 Settings are local to each browser/device and do not sync automatically. The username, URL, and prefix are stored in that browser's local storage. Do not save credentials on a shared device.
 
+To open Board Settings, enter the app access code **290771**. To add another hub, open **Board Settings → Saved Hubs**, enter its name, local IP address, and the exact MQTT topic prefix configured on that hub, then select **Save Hub**. Saving stores a connection profile in this browser; it does not discover or configure hardware. Select the saved profile to make it the active hub. To add PCF8575 expansion-board switch points instead, use **Active Relays**, enable the board and its switch points, save, then assign those points to a room.
+
 ## Security and browser limitations
 
 The default EMQX public broker does not make your messages private. The Android project's current default topic prefix is public in its source code, so other broker users may be able to observe or publish relay commands if you continue using it. Set a new unique prefix on the hub and in this browser and, preferably, use a private broker with authentication and access controls before controlling real equipment. Do not put broker passwords in source code or GitHub.
